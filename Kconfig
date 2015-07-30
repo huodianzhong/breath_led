@@ -1,0 +1,11 @@
+
+menu "Amlogic breath led Support"
+
+config AMLOGIC_BREATH_LED
+	bool "Amlogic breath led support"
+	#select SETIO_CLASS_DEVICE
+	default y
+	help
+	  Say Y here if you want to use the amlogic breath led management.
+
+endmenu
