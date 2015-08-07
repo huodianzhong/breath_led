@@ -76,7 +76,7 @@ struct aml_breathled_platform_data *Mypdata = NULL;
 static unsigned int pwm_prescale = 0x03; //AO_PWM_MISC_REG_AB(PWM_B_CLK_DIV) [22:16] 0-0x7f
 static unsigned int pwm_entire_cycle = 0xFFFF; //AO_PWM_PWM_B(PWM_B_DUTY_CYCLE) [31:15]H,[15-0]L   //915KHz
 /* Timer period, which determines the breath rynthm of Led */
-static u32 timer_n_10ms = 8;
+static u32 timer_n_ms = 20;
 /* Current index for locating duty_array */
 static unsigned int cur_index = 0;
 /* Timer */
@@ -85,24 +85,28 @@ static struct timer_list g_timer;
 static unsigned int blink_status = 0;
 
 unsigned int led_mode_s = 0;
-#define DUTY_ARRAY_COUNT  120
+#define DUTY_ARRAY_COUNT  160
 //#define MODULE_LED_DEBUG
 #define AUTOSUSPEND_TEST
 
 /* Determine brightness of led */
 static __u32 duty_array[DUTY_ARRAY_COUNT] = {
-          1,  1,  1,  2,  3,  4,  5,  6,  7,  8,
-         10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
-         30, 32, 34, 36, 38, 40, 42, 44, 46, 48,
-         50, 52, 54, 56, 58, 60, 62, 64, 66, 68,
-         70, 72, 74, 76, 78, 80, 82, 84, 86, 88,
-         90, 92, 94, 96, 98,100,100,100,100,98,
-         96, 94, 92, 90, 88, 86, 84, 82, 80, 78,
-         76, 74, 72, 70, 68, 66, 64, 62, 60, 58,
-         56, 54, 52, 50, 48, 46, 44, 42, 40, 38,
-         36, 34, 32, 30, 28, 26, 24, 22, 20, 18,
-         16, 14, 12, 10,  8,  7,  6,  5,  4,  3,
-          2,  1,  1,  1,  1,  1,  1,  1,  1,  1
+         0,  1,  1,  1,  2,  3,  4,  5,  6,  7,
+         8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+         18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+         28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
+         38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+         48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+         58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+         68, 69, 70, 71, 72, 73, 74, 75, 76, 77,
+         78, 79, 80, 81, 82, 83, 84, 85, 86, 87,
+         88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
+         98, 99, 100,96, 94, 90, 88, 86, 84, 82,
+         80, 78, 74, 72, 70, 68, 66, 64, 62, 60,
+         59, 58, 56, 54, 53, 51, 49, 46, 44, 42,
+         41, 40, 39, 38, 36, 34, 32, 30, 28, 26,
+         24, 22, 20, 18, 16, 14, 12, 10,  9,  8,
+          8, 8,  7,  6,  5,  4,  3,   2,  1,  0
 };
 
 static void leds_pwm_setting(unsigned int entire_cycle, unsigned int duty)
@@ -121,7 +125,7 @@ static void leds_pwm_setting(unsigned int entire_cycle, unsigned int duty)
 
 static void g_timer_handle(unsigned long arg)
 {
-    mod_timer(&g_timer, jiffies + HZ / 100 * timer_n_10ms);
+    mod_timer(&g_timer, jiffies + HZ / 1000 * timer_n_ms);
     if (cur_index == DUTY_ARRAY_COUNT - 1) {
         cur_index = 0;
     } else {
@@ -133,15 +137,15 @@ static void g_timer_handle(unsigned long arg)
     printk(KERN_INFO"cur_index=%d \n",cur_index);
 #endif
 }
-static void g_timer_init(unsigned int timer_expires_10ms)
+static void g_timer_init(unsigned int timer_expires_ms)
 {
     init_timer(&g_timer);
     g_timer.function = &g_timer_handle;
-    g_timer.expires = jiffies + HZ / 100 * timer_expires_10ms;
+    g_timer.expires = jiffies + HZ / 1000 * timer_expires_ms;
 }
-static void g_timer_start(unsigned int timer_expires_10ms)
+static void g_timer_start(unsigned int timer_expires_ms)
 {
-    mod_timer(&g_timer, jiffies + HZ / 100 * timer_expires_10ms);
+    mod_timer(&g_timer, jiffies + HZ / 1000 * timer_expires_ms);
 }
 static void g_timer_del(void)
 {
@@ -158,12 +162,12 @@ static void leds_pwm_init( unsigned int prescale, unsigned int cycle)
     struct aml_breathled_platform_data *pdata=Mypdata;
     u32 val;
 
-    writel(cycle,pdata->reg_base+PWM_PWM_B);  //0x2154 [31:15]H,[15-0]L 
-
     val=readl(pdata->reg_base+PWM_MISC_REG_AB);
     val = PWM_B_CLK_DRV(prescale) | PWM_B_EN | PWM_B_CLK_EN | PWM_B_CLK_SEL(0);
     printk(KERN_INFO"%s writel:0x%x\n",__func__,val);
     writel(val,pdata->reg_base+PWM_MISC_REG_AB);
+
+    writel(cycle,pdata->reg_base+PWM_PWM_B);  //0x2154 [31:15]H,[15-0]L 
 }
 /*led control*/
 static int led_control(unsigned int led_mode )
@@ -178,21 +182,24 @@ static int led_control(unsigned int led_mode )
     {
         case ALWAYS_ON:
             g_timer_del();
+            mdelay(10);
             leds_pwm_setting(pwm_entire_cycle, 100);
             led_mode_s = ALWAYS_ON;
             break;
         case LED_BREATH:
-            g_timer_start(timer_n_10ms);
+            g_timer_start(timer_n_ms);
             led_mode_s = LED_BREATH;
             break;
         case LED_BLINK:
             blink_status = 1;
             g_timer_del();
+            mdelay(10);
             leds_pwm_init(0x7f,0xffffffff); //clk 1.35Hz for recovery facotry reset
             led_mode_s = LED_BLINK;
             break;
         case ALWAYS_OFF:
             g_timer_del();
+            mdelay(10);
             leds_pwm_setting(pwm_entire_cycle, 0);
             led_mode_s = ALWAYS_OFF;
             break;
@@ -383,7 +390,7 @@ static int aml_breathled_probe(struct platform_device *pdev)
         goto err;
     }
     /*PWM init ,2min timer for led on*/
-    g_timer_init(timer_n_10ms);
+    g_timer_init(timer_n_ms);
     leds_pwm_init(pwm_prescale,pwm_entire_cycle);
     leds_pwm_setting(pwm_entire_cycle, 100);
     return 0;
