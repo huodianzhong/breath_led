@@ -76,19 +76,24 @@ struct aml_breathled_platform_data *Mypdata = NULL;
 static unsigned int pwm_prescale = 0x03; //AO_PWM_MISC_REG_AB(PWM_B_CLK_DIV) [22:16] 0-0x7f
 static unsigned int pwm_entire_cycle = 0xFFFF; //AO_PWM_PWM_B(PWM_B_DUTY_CYCLE) [31:15]H,[15-0]L   //915KHz
 /* Timer period, which determines the breath rynthm of Led */
-static u32 timer_n_ms = 20;
+static unsigned int timer_n_ms = 10;
 /* Current index for locating duty_array */
 static unsigned int cur_index = 0;
 /* Timer */
 static struct timer_list g_timer;
 /* led blink flg,we need it because need to change prescale */
 static unsigned int blink_status = 0;
-
+/* led mode */
 unsigned int led_mode_s = 0;
+/* led breath timeout 20ms*/
+static unsigned int led_breath_timeout = 0;
+
+#define BREATH_TIMEOUT_COUNT 1500 /* 15s */
 #define DUTY_ARRAY_COUNT  160
 //#define MODULE_LED_DEBUG
 #define AUTOSUSPEND_TEST
 
+static int led_control(unsigned int led_mode );
 /* Determine brightness of led */
 static __u32 duty_array[DUTY_ARRAY_COUNT] = {
          0,  1,  1,  1,  2,  3,  4,  5,  6,  7,
@@ -125,7 +130,15 @@ static void leds_pwm_setting(unsigned int entire_cycle, unsigned int duty)
 
 static void g_timer_handle(unsigned long arg)
 {
-    mod_timer(&g_timer, jiffies + HZ / 1000 * timer_n_ms);
+    led_breath_timeout++;
+    if(led_breath_timeout > BREATH_TIMEOUT_COUNT){
+        led_breath_timeout = 0;
+        led_control(ALWAYS_ON);
+        printk(KERN_INFO"led breath 15s timeout.\n");
+        return;
+    }
+
+    mod_timer(&g_timer, jiffies + msecs_to_jiffies(timer_n_ms));
     if (cur_index == DUTY_ARRAY_COUNT - 1) {
         cur_index = 0;
     } else {
@@ -141,11 +154,11 @@ static void g_timer_init(unsigned int timer_expires_ms)
 {
     init_timer(&g_timer);
     g_timer.function = &g_timer_handle;
-    g_timer.expires = jiffies + HZ / 1000 * timer_expires_ms;
+    g_timer.expires = jiffies + msecs_to_jiffies(timer_expires_ms);//HZ / 1000 * timer_expires_ms;
 }
 static void g_timer_start(unsigned int timer_expires_ms)
 {
-    mod_timer(&g_timer, jiffies + HZ / 1000 * timer_expires_ms);
+    mod_timer(&g_timer, jiffies + msecs_to_jiffies(timer_expires_ms));//HZ / 1000 * timer_expires_ms);
 }
 static void g_timer_del(void)
 {
@@ -389,7 +402,7 @@ static int aml_breathled_probe(struct platform_device *pdev)
         printk(KERN_ERR "class_register breathled_class failed\n");
         goto err;
     }
-    /*PWM init ,2min timer for led on*/
+    /*PWM init */
     g_timer_init(timer_n_ms);
     leds_pwm_init(pwm_prescale,pwm_entire_cycle);
     leds_pwm_setting(pwm_entire_cycle, 100);
