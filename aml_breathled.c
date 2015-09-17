@@ -287,6 +287,12 @@ static int aml_breathled_resume(struct platform_device *pdev)
     return 0;
 }
 
+static void aml_breathled_shutdown(struct platform_device *pdev)
+{
+	printk(KERN_INFO "enter aml_breathled_shutdown\n");
+	led_control(ALWAYS_OFF);
+}
+
 static int aml_breathled_probe(struct platform_device *pdev)
 {
     struct aml_breathled_platform_data *pdata;
@@ -450,6 +456,7 @@ static struct platform_driver aml_breathled_driver = {
 	.remove = __exit_p(aml_breathled_remove),
 	.suspend = aml_breathled_suspend,
 	.resume  = aml_breathled_resume,
+	.shutdown = aml_breathled_shutdown,
 };
 
 static int __init aml_breathled_init(void)
